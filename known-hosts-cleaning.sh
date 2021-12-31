@@ -10,7 +10,7 @@
 
 scriptPath=$(dirname $(realpath $0))    # full path to the directory where the script is located
 backupDone=false   # controls whether known_hosts file has been backed up
-knownHostsFile=$(dirname ~/.ssh/known_hosts)'/known_hosts'
+knownHostsFile=$(dirname ~/.ssh/known_hosts)'/known_hosts'  # full path of user's SSH known_hosts file
 
 
 ###################################################
@@ -35,7 +35,7 @@ function make_backup() {
     cp $knownHostsFile $backupFile    # makes known_hosts backup file
     if [ $? -eq 0 ] && [ -f $backupFile ]
     then
-        echo -e ${BLUE}'\nBackup of known_host file has been done into '${LGREEN}$backupFile${SC}'\n'
+        echo -e ${BLUE}'\nBackup of known_host file has been done into '${LGREEN}$backupFile${SC}' file.\n'
         backupDone=true
     else
         echo -e ${LRED}'\nBackup of '$knownHostsFile' could not be done. Check the reason of that. Quitting the script now...'${SC}
@@ -44,27 +44,12 @@ function make_backup() {
 }
 
 
-function remove_ips() {
-# removes the entries starting with IP address in known_hosts file
-    echo -e ${BLUE}'\nRemoving the entries beginning with IP address...'${SC}
-    cat $knownHostsFile | while read line
-                                do
-                                    if $(echo $line | grep --quiet --extended-regexp '^[1-9][0-9]{0,2}(\.[0-9]{1,3}){3}')
-                                    then
-                                        ipAddress=$(echo $line | gawk '{print $1}')
-                                        if ! $backupDone; then make_backup; fi
-                                        #ssh-keygen -R $ipAddress -f $knownHostsFile
-                                        echo 'ip address = '$ipAddress    # debugging
-                                    fi
-                                done
-}
-
-
 function remove_containing() {
-# removes the entries containing the string specified by user
-# this string must be found in the first segment (block, column) of the entry
-# then, the string is related to the host or domain name 
-    # checks Bash version whether is at last 4.2 that is needed to use shopt -s lastpipe
+# Removes the entries containing the string specified by user.
+# This string must be found in the first segment (block, column) of the entry;
+# then, the string is related to the host or domain name;
+# If the function is called with IP argument, then the function removes the entries starting with IP address.
+    # checks Bash version whether it is at last 4.2 that is needed to use 'shopt -s lastpipe' command
     if [ $(echo $BASH_VERSION | gawk --field-separator '.' '{print $1}') -ge 4 ] && [ $(echo $BASH_VERSION | gawk --field-separator '.' '{print $2}') -ge 2 ]
     then bashVerOK=true
     else bashVerOK=false
@@ -75,21 +60,32 @@ function remove_containing() {
     while [ "$(echo $strToFind | sed 's/ //g')" != '' ] || ! $isIn
     do
         isIn=true
-        read  -i "$strToFind" -p 'Enter string or regular expression to match entry in known_hosts file. Press Enter to get back to main menu: ' strToFind 
-        # echo 'str to find 1: '$strToFind  # debugging
+        if [ "$1" == 'IP' ]
+        # if the funciton is called with IP argument, then regular expression matching IP addresses is set up; otherwise, user enters a pattern 
+        then 
+            strToFind='^[1-9][0-9]{0,2}(\.[0-9]{1,3}){3}'
+        else 
+            read  -i "$strToFind" -p 'Enter string or regular expression to match entry in known_hosts file. Press Enter to get back to main menu: ' strToFind 
+        fi
         if [ "$strToFind" == ',' ]
         then
             echo -e ${LRED}'\n A single comma sign is not allowed.\n'${SC}
         elif [ "$strToFind" != '' ]
         then
-            echo -e ${BLUE}'\nRemoving the entries matching following pattern: '${ORANGE}$strToFind${BLUE}' ...'${SC}
+            if [ "$1" == 'IP' ]
+            then
+                echo -e ${BLUE}'\nRemoving the entries starting with IP address ...'${SC}
+            else
+                echo -e ${BLUE}'\nRemoving the entries matching following pattern: '${ORANGE}$strToFind${BLUE}' ...'${SC}
+            fi
             if $bashVerOK; then shopt -s lastpipe; fi   # checks whether Bash ver. >= 4.2 to run shopt -s lastpipe (to get $entriesFound evaluated in pipeline) 
             cat $knownHostsFile | while read line
                                         do
                                             # checks whether seeking string is included whithin the first segment
                                             # echo 'str to find: '$strToFind    # debugging
                                             # echo 'grep result: '$(echo $line | gawk '{print $1}' | grep --regexp "$strToFind")    # debugging
-                                            if $(echo $line | gawk '{print $1}' | grep --quiet --extended-regexp "$strToFind")
+                                            if $(echo $line | gawk '{print $1}' | grep --quiet --extended-regexp "$strToFind" 2>/dev/null)
+                                            # errors are redirected to /dev/null to avoid grep errors in case of wrong regular expression
                                             then
                                                 # checks whether there are more than one host related info in the entry
                                                 # a comma indicates that they are there
@@ -100,9 +96,10 @@ function remove_containing() {
                                                     entry=$(echo $line | gawk '{print $1}')
                                                 fi
                                                 if ! $backupDone; then make_backup; fi
-                                                #ssh-keygen -R $entry -f $knownHostsFile
-                                                echo 'entry = '$entry    # debugging
+                                                ssh-keygen -R $entry -f $knownHostsFile
+                                                # echo 'entry = '$entry    # debugging
                                                 (( entriesFound++ ))
+                                                echo
                                                 # echo 'entries found: '$entriesFound   # debugging
                                             fi
                                         done
@@ -110,7 +107,7 @@ function remove_containing() {
             if $bashVerOK   # if Bash ver. is >= 4.2 then the value of $entriesFound can be retrieved correctly thank to shopt -s lastpipe command
             then
                 if [ $entriesFound -gt 0 ] 
-                then echo -e ${BLUE}'\nNumber of entries matched the pattern: '${ORANGE}$entriesFound${SC}
+                then echo -e ${BLUE}'Number of entries matched the pattern: '${ORANGE}$entriesFound${SC}
                 else echo -e ${ORANGE}'\nThere was no entry that matched the pattern.'${SC}
                 fi
             fi
@@ -129,7 +126,7 @@ do
     do
         case $REPLY in
             1 ) echo -e ${BLUE}'\n Here is your '${ORANGE}$knownHostsFile${BLUE}' content: \n'${SC}; cat $knownHostsFile; press_any_key; break;;
-            2 ) remove_ips; press_any_key; break;;
+            2 ) remove_containing IP; break;;
             3 ) remove_containing; break;;
             4 ) quit_now;;
             * ) clear; echo -e ${ORANGE}'\n\n Choose a correct option (number), pls.'${SC}; sleep 2; break;;
