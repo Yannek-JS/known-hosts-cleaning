@@ -1,17 +1,17 @@
 # known-hosts-cleaning
 A Bash script that makes cleaning up of SSH known_hosts file easier.
 
-The script works with user's known_hosts file. It lets you remove all entries starting with IP address just in one move from this file.
-You also can specify a pattern (string or regular expression) that is use for finding and removing the entries that match it. 
+The script modifies user's known_hosts file. It lets you remove all entries starting with IP address just in one move from this file.
+You can also specify a pattern (string or regular expression) that is use for finding and removing the entries that match it. 
 
 **Known issues**
-1. Escape character `\` needs to be entered twice to be treated as escape character in regular expressions, e.g. when you are about to remove all entries starting wit square bracket `[`, you need to enter the pattern like this: `^\\[`
+1. Backslash `\` needs to be entered twice to be treated as escape character in regular expressions, e.g. when you are about to remove all entries starting wit square bracket `[`, you need to enter the pattern like this: `^\\[`
 
 **Requirements:**
 
 * Bash version >= 4.0 should be fine for this script, however script is more verbose with versions >= 4.2. To check your Bash version, run 
 ```bash --version```
-* following packages are required, however, they are included in most of Linux distro configurations by default: `grep`, `sed`, `awk` 
+* following packages are required, however, they are included in most of Linux distro configurations by default: `grep`, `sed`, `gawk` 
 
 <br />
 
